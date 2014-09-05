@@ -48,6 +48,8 @@ def events_date(cal, event_date):
         if not skip:
           events.append( (start, component) )
 
+  events.sort(key=itemgetter(0))
+
   for event in events:
     start = event[0]
     component = event[1]
