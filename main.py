@@ -11,8 +11,6 @@ import re
 from operator import itemgetter
 
 
-
-
 # settings
 ical_age_limit = 3600 * 5;
 
@@ -23,34 +21,32 @@ tzlocal = pytz.timezone('Europe/Berlin')
 
 # functions
 
-def display(cal):
-  return cal.to_ical().replace('\r\n', '\n').strip()
-
-def events_today(cal):
-  return events_date(cal, dt.date.today())
+def events_today(cals):
+  return events_date(cals, dt.date.today())
 
 def events_date(cal, event_date):
   print event_date.strftime("%Y-%m-%d:")
 
   events = []
 
-  for component in cal.walk("VEVENT"):
-    dtstart = component.get('dtstart').dt
+  for cal in cals:
+    for component in cal.walk("VEVENT"):
+      dtstart = component.get('dtstart').dt
 
-    if dtstart.date() == event_date:
-      dt_local = dtstart.astimezone(tzlocal) # localize time
-      start = dt_local.time()
+      if dtstart.date() == event_date:
+        dt_local = dtstart.astimezone(tzlocal) # localize time
+        start = dt_local.time()
 
-      # filter
-      skip = False
-      summary = component.get('summary')
-      for f in filters:
-        if re.search(f, summary):
-          skip = True
-          break
+        # filter
+        skip = False
+        summary = component.get('summary')
+        for f in filters:
+          if re.search(f, summary):
+            skip = True
+            break
 
-      if not skip:
-        events.append( (start, component) )
+        if not skip:
+          events.append( (start, component) )
 
   for event in events:
     start = event[0]
@@ -65,6 +61,11 @@ def events_date(cal, event_date):
 
 # setup and parse arguments
 
+app_path = os.path.dirname(os.path.realpath(__file__))
+url_file = join(app_path, "urls")
+cache_file = join(app_path, "cache.ics")
+filter_file = join(app_path, "filters")
+
 parser = argparse.ArgumentParser(description='A remote ical aggregator.')
 # TODO implement week, month
 parser.add_argument('-t', dest='target', choices=['day'], default='day', help='display time frame')
@@ -72,21 +73,27 @@ parser.add_argument('-o', dest='offset', metavar='n', type=int, action='store', 
 args = parser.parse_args()
 
 
+# load urls
+
+with open(join(app_path, "urls")) as f:
+  urls = f.readlines()
+
+
 # retrieve icals if neccessary
 
-app_path = os.path.dirname(os.path.realpath(__file__))
-file_name = app_path + "/cache.ics"
-
-if (not os.path.exists(file_name)
-  or time.time() - os.path.getmtime(file_name) > ical_age_limit):
+if (not os.path.exists(cache_file)
+  or time.time() - os.path.getmtime(cache_file) > ical_age_limit):
   print "Retrieving icals...",
   
-  f = open(file_name, "wb")
+  f = open(cache_file, "wb")
+  cal_string = ""
 
   for url in urls:
     # TODO catch errors
-    u = urllib.urlopen(url, file_name)
+    url = url.rstrip()
+    u = urllib.urlopen(url, url_file)
     buf = u.read()
+    cal_string += buf
     f.write(buf)
 
   f.close()
@@ -95,18 +102,18 @@ if (not os.path.exists(file_name)
 
 else:
 
-  f = open(file_name, "r")
-  buf = f.read()
+  f = open(cache_file, "r")
+  cal_string = f.read()
   f.close()
 
 
 # load cals
 
-cal = icalendar.Calendar.from_ical(buf)
+cals = icalendar.Calendar.from_ical(cal_string, multiple=True)
 
 
 # import filter rules
-with open(join(app_path, "filters")) as f:
+with open(filter_file) as f:
   filters = f.readlines()
 
 for i, elem in enumerate(filters):
@@ -117,8 +124,8 @@ for i, elem in enumerate(filters):
 
 if args.target == 'day':
   if args.offset == 0:
-    print events_today(cal)
+    print events_today(cals)
   else:
     target = dt.date.today() + dt.timedelta(days=args.offset)
-    print events_date(cal, target)
+    print events_date(cals, target)
 
