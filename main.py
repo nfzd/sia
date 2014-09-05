@@ -147,11 +147,14 @@ cals = icalendar.Calendar.from_ical(cal_string, multiple=True)
 
 # import filter rules
 
-with open(filter_file) as f:
-  filters = f.readlines()
+if os.path.exists(filter_file):
+  with open(filter_file) as f:
+    filters = f.readlines()
 
-for i, elem in enumerate(filters):
-  filters[i] = elem.rstrip('\n')
+  for i, elem in enumerate(filters):
+    filters[i] = elem.rstrip('\n')
+else:
+  filters = []
 
 
 # display
