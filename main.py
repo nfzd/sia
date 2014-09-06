@@ -5,6 +5,7 @@ from os.path import join
 import datetime as dt
 import time, pytz
 import urllib
+import calendar
 import icalendar
 import argparse
 import re
@@ -21,11 +22,8 @@ tzlocal = pytz.timezone('Europe/Berlin')
 
 # functions
 
-def events_today(cals):
-  return events_date(cals, dt.date.today())
-
 def events_date(cal, event_date):
-  print event_date.strftime("%Y-%m-%d:")
+  print event_date.strftime("%A, %x:")
 
   events = []
 
@@ -55,24 +53,26 @@ def events_date(cal, event_date):
     component = event[1]
     dt_local = component.get('dtend').dt.astimezone(tzlocal) # localize time
     end = dt_local.time()
-    print "  ", start.strftime("%H:%M"), "-", end.strftime("%H:%M"), component.get('summary')
+
+    p = '  %s - %s: %s' % (start.strftime('%H:%M'), end.strftime('%H:%M'), component.get('summary'))
+    print p.encode('utf-8')
 
 
-  return ""
+  return ''
 
 
 # setup and parse arguments
 
 app_path = os.path.dirname(os.path.realpath(__file__))
-url_file = join(app_path, "urls")
-cache_file = join(app_path, "cache.ics")
-filter_file = join(app_path, "filters")
+url_file = join(app_path, 'urls')
+cache_file = join(app_path, 'cache.ics')
+filter_file = join(app_path, 'filters')
 
 parser = argparse.ArgumentParser(description='A remote ical aggregator.')
 parser.add_argument('-d', dest='day', action='store_true', default=False, help='Display single day (default).')
 parser.add_argument('-w', dest='week', action='store_true', default=False, help='Display week.')
 parser.add_argument('-m', dest='month', action='store_true', default=False, help='Display month.')
-parser.add_argument('-n', dest='nop', action='store_true', default=False, help='Don\'t show any output. Useful in combination with -r.')
+parser.add_argument('-q', dest='quiet', action='store_true', default=False, help='Don\'t show any output. Useful in combination with -r.')
 parser.add_argument('-o', dest='offset', metavar='n', type=int, action='store', default=0, help='Numerical offset from today, this week, or this month.')
 parser.add_argument('-r', dest='force_retrieve', action='store_true', default=False, help='Force retrieving remote icals.')
 parser.add_argument('--no-retrieve', dest='no_retrieve', action='store_true', default=False, help='Don\'t allow retrieving remote icals, abort if no cache file is present. This overrides -r.')
@@ -101,6 +101,8 @@ with open(join(app_path, "urls")) as f:
 
 # retrieve icals if neccessary
 
+read = False
+
 if not args.no_retrieve:
 
   if (args.force_retrieve
@@ -116,27 +118,32 @@ if not args.no_retrieve:
       url = url.rstrip()
       u = urllib.urlopen(url, url_file)
       buf = u.read()
-      cal_string += buf
+      cal_string.join(buf)
       f.write(buf)
 
     f.close()
 
     print "done."
+  
+  else:
+    read = True
 
 elif not os.path.exists(cache_file):
   print "Cache file doesn't exist, aborting."
   exit(1)
 
 else:
+  read = True
 
+if read:
   f = open(cache_file, "r")
   cal_string = f.read()
   f.close()
 
 
-# nop option
+# quiet option
 
-if args.nop:
+if args.quiet:
   exit(0)
 
 
@@ -159,22 +166,37 @@ else:
 
 # display
 
+target = dt.date.today()
+
 if args.month:
 
-  print "Not implemented yet. Sorry."
-  exit(1336)
+  if args.offset != 0:
+    target = target + dt.timedelta(days=args.offset*365/12)
+
+  first_offset = -1 * (target.day - 1)
+  target = target + dt.timedelta(days=first_offset)
+  cur = target
+
+  last = calendar.monthrange(target.year, target.month)[1]
+  for day in range(0, last):
+    cur = target + dt.timedelta(days=day)
+    print events_date(cals, cur)
 
 elif args.week:
 
-  print "Not implemented yet. Sorry."
-  exit(1336)
+  if args.offset != 0:
+    target = target + dt.timedelta(weeks=args.offset)
+
+  monday_offset = -1 * target.weekday()
+  target = target + dt.timedelta(days=monday_offset)
+  cur = target
+
+  for day in range(0, 7):
+    cur = target + dt.timedelta(days=day)
+    print events_date(cals, cur)
 
 else:
-
-  if args.offset == 0:
-    print events_today(cals)
-  else:
+  if args.offset != 0:
     target = dt.date.today() + dt.timedelta(days=args.offset)
-    print events_date(cals, target)
 
-exit(0)
+  print events_date(cals, target)
