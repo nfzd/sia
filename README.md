@@ -18,6 +18,6 @@ Usage
 
 sia depends on [icalendar](https://pypi.python.org/pypi/icalendar). For installation, see their page.
 
-Currently, sia is configured via text files in the program directory. A file name __urls__ can contain one url per line, from where the remote icals are retrieved. A file named __filters__ contains custom filters. If sia finds a match of one on the filters on an event summary, the event is discarded.
+Currently, sia is configured via text files in the program directory. A __timezone__ file contains the name of the local timezone. A file named __urls__ can contain one url per line, from where the remote icals are retrieved. A file named __filters__ contains custom filters. If sia finds a match of one on the filters on an event summary, the event is discarded.
 
 For more on usage, try --help.

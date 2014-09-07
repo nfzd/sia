@@ -16,10 +16,6 @@ from operator import itemgetter
 ical_age_limit = 3600 * 5;
 
 
-# time zone handling
-tzlocal = pytz.timezone('Europe/Berlin')
-
-
 # functions
 
 def events_date(cal, event_date):
@@ -67,6 +63,7 @@ app_path = os.path.dirname(os.path.realpath(__file__))
 url_file = join(app_path, 'urls')
 cache_file = join(app_path, 'cache.ics')
 filter_file = join(app_path, 'filters')
+tz_file = join(app_path, 'timezone')
 
 parser = argparse.ArgumentParser(description='A remote ical aggregator.')
 parser.add_argument('-d', dest='day', action='store_true', default=False, help='Display single day (default).')
@@ -91,6 +88,14 @@ if sum([ args.day, args.week, args.month ]) > 1:
 
   print "). Aborting."
   exit(1)
+
+
+# set time zone
+
+with open(tz_file) as f:
+  tz = f.read().rstrip()
+
+tzlocal = pytz.timezone(tz)
 
 
 # load urls
