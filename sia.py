@@ -18,7 +18,7 @@ ical_age_limit = 3600 * 5;
 
 # functions
 
-def events_date(cal, event_date):
+def events_date(cal, event_date, location=False, description=False):
   print event_date.strftime("%A, %x:")
 
   events = []
@@ -50,7 +50,20 @@ def events_date(cal, event_date):
     dt_local = component.get('dtend').dt.astimezone(tzlocal) # localize time
     end = dt_local.time()
 
-    p = '  %s - %s: %s' % (start.strftime('%H:%M'), end.strftime('%H:%M'), component.get('summary'))
+    summary = component.get('summary')
+
+    loc_str = ''
+    if location:
+      loc = component.get('location')
+      loc_str = '\n                 %s' % loc
+
+    desc_str = ''
+    if location:
+      desc = component.get('description')
+      desc_str = '\n                 %s' % desc
+
+    p = '  %s - %s: %s%s%s' % (start.strftime('%H:%M'), end.strftime('%H:%M'),\
+                               summary, desc_str, loc_str)
     print p.encode('utf-8')
 
 
@@ -66,11 +79,13 @@ filter_file = join(app_path, 'filters')
 tz_file = join(app_path, 'timezone')
 
 parser = argparse.ArgumentParser(description='A remote ical aggregator.')
-parser.add_argument('-d', dest='day', action='store_true', default=False, help='Display single day (default).')
+parser.add_argument('-s', dest='day', action='store_true', default=False, help='Display single day (default).')
 parser.add_argument('-w', dest='week', action='store_true', default=False, help='Display week.')
 parser.add_argument('-m', dest='month', action='store_true', default=False, help='Display month.')
 parser.add_argument('-q', dest='quiet', action='store_true', default=False, help='Don\'t show any output. Useful in combination with -r.')
 parser.add_argument('-o', dest='offset', metavar='n', type=int, action='store', default=0, help='Numerical offset from today, this week, or this month.')
+parser.add_argument('-d', dest='description', action='store_true', default=False, help='Display event description.')
+parser.add_argument('-l', dest='location', action='store_true', default=False, help='Display event location.')
 parser.add_argument('-r', dest='force_retrieve', action='store_true', default=False, help='Force retrieving remote icals.')
 parser.add_argument('--no-retrieve', dest='no_retrieve', action='store_true', default=False, help='Don\'t allow retrieving remote icals, abort if no cache file is present. This overrides -r.')
 
@@ -185,7 +200,7 @@ if args.month:
   last = calendar.monthrange(target.year, target.month)[1]
   for day in range(0, last):
     cur = target + dt.timedelta(days=day)
-    print events_date(cals, cur)
+    print events_date(cals, cur, location=args.location)
 
 elif args.week:
 
@@ -198,10 +213,10 @@ elif args.week:
 
   for day in range(0, 7):
     cur = target + dt.timedelta(days=day)
-    print events_date(cals, cur)
+    print events_date(cals, cur, location=args.location)
 
 else:
   if args.offset != 0:
     target = dt.date.today() + dt.timedelta(days=args.offset)
 
-  print events_date(cals, target)
+  print events_date(cals, target, location=args.location)
