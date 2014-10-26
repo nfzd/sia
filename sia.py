@@ -87,7 +87,7 @@ parser.add_argument('-o', dest='offset', metavar='n', type=int, action='store', 
 parser.add_argument('-d', dest='description', action='store_true', default=False, help='Display event description.')
 parser.add_argument('-l', dest='location', action='store_true', default=False, help='Display event location.')
 parser.add_argument('-r', dest='force_retrieve', action='store_true', default=False, help='Force retrieving remote icals.')
-parser.add_argument('--no-retrieve', dest='no_retrieve', action='store_true', default=False, help='Don\'t allow retrieving remote icals, abort if no cache file is present. This overrides -r.')
+parser.add_argument('-n', dest='no_retrieve', action='store_true', default=False, help='Don\'t allow retrieving remote icals, abort if no cache file is present. This overrides -r.')
 
 args = parser.parse_args()
 
