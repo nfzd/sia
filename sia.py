@@ -13,7 +13,7 @@ from operator import itemgetter
 
 
 # settings
-ical_age_limit = 3600 * 5;
+ical_age_limit = 3600 * 12;
 
 
 # functions
