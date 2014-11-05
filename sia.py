@@ -122,6 +122,7 @@ with open(join(app_path, "urls")) as f:
 # retrieve icals if neccessary
 
 read = False
+cal_string = ""
 
 if not args.no_retrieve:
 
@@ -131,14 +132,13 @@ if not args.no_retrieve:
     print "Retrieving icals...",
     
     f = open(cache_file, "wb")
-    cal_string = ""
 
     for url in urls:
       # TODO catch errors
       url = url.rstrip()
       u = urllib.urlopen(url, url_file)
       buf = u.read()
-      cal_string.join(buf)
+      cal_string = cal_string.join(buf)
       f.write(buf)
 
     f.close()
