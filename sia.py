@@ -138,7 +138,7 @@ if not args.no_retrieve:
       url = url.rstrip()
       u = urllib.urlopen(url, url_file)
       buf = u.read()
-      cal_string = cal_string.join(buf)
+      cal_string += buf
       f.write(buf)
 
     f.close()
