@@ -58,7 +58,7 @@ def events_date(cal, event_date, location=False, description=False):
       loc_str = '\n                 %s' % loc
 
     desc_str = ''
-    if location:
+    if description:
       desc = component.get('description')
       desc_str = '\n                 %s' % desc
 
@@ -213,7 +213,7 @@ elif args.week:
 
   for day in range(0, 7):
     cur = target + dt.timedelta(days=day)
-    print events_date(cals, cur, location=args.location)
+    print events_date(cals, cur, location=args.location, description=args.description)
 
 else:
   if args.offset != 0:
