@@ -58,7 +58,7 @@ def events_date(cal, event_date, location=False, description=False):
       loc_str = '\n                 %s' % loc
 
     desc_str = ''
-    if location:
+    if description:
       desc = component.get('description')
       desc_str = '\n                 %s' % desc
 
