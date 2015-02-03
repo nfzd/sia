@@ -1,15 +1,18 @@
 #!/usr/bin/env python2
 
+import argparse
+import calendar
+import datetime as dt
+import icalendar
+from operator import itemgetter
 import os, os.path
 from os.path import join
-import datetime as dt
-import time, pytz
-import urllib
-import calendar
-import icalendar
-import argparse
+import pytz
 import re
-from operator import itemgetter
+import sys
+import time
+import tzlocal
+import urllib
 
 
 # settings
@@ -17,6 +20,9 @@ ical_age_limit = 3600 * 12;
 
 
 # functions
+
+def exit(error_msg):
+    sys.exit(os.path.basename(__file__) + ": Error: " + error_msg)
 
 def events_date(cal, event_date, location=False, description=False):
   print event_date.strftime("%A, %x:")
@@ -70,153 +76,154 @@ def events_date(cal, event_date, location=False, description=False):
   return ''
 
 
-# setup and parse arguments
+if __name__ == '__main__':
 
-app_path = os.path.dirname(os.path.realpath(__file__))
-url_file = join(app_path, 'urls')
-cache_file = join(app_path, 'cache.ics')
-filter_file = join(app_path, 'filters')
-tz_file = join(app_path, 'timezone')
+    # setup file names
 
-parser = argparse.ArgumentParser(description='A remote ical aggregator.')
-parser.add_argument('-s', dest='day', action='store_true', default=False, help='Display single day (default).')
-parser.add_argument('-w', dest='week', action='store_true', default=False, help='Display week.')
-parser.add_argument('-m', dest='month', action='store_true', default=False, help='Display month.')
-parser.add_argument('-q', dest='quiet', action='store_true', default=False, help='Don\'t show any output. Useful in combination with -r.')
-parser.add_argument('-o', dest='offset', metavar='n', type=int, action='store', default=0, help='Numerical offset from today, this week, or this month.')
-parser.add_argument('-d', dest='description', action='store_true', default=False, help='Display event description.')
-parser.add_argument('-l', dest='location', action='store_true', default=False, help='Display event location.')
-parser.add_argument('-r', dest='force_retrieve', action='store_true', default=False, help='Force retrieving remote icals.')
-parser.add_argument('-n', dest='no_retrieve', action='store_true', default=False, help='Don\'t allow retrieving remote icals, abort if no cache file is present. This overrides -r.')
+    home = os.path.expanduser("~")
+    confdir = join(home, '.sia')
+    url_file = join(confdir, 'urls')
+    filter_file = join(confdir, 'urls')
+    cache_file = join(confdir, 'cache.ics')
 
-args = parser.parse_args()
+    # parse arguments
 
-# check for argument conflicts
-if sum([ args.day, args.week, args.month ]) > 1:
-  print "Error: conflicting flags (",
-  if args.day:
-    print "-d",
-  if args.week:
-    print "-w",
-  if args.month:
-    print "-m",
+    parser = argparse.ArgumentParser(description='A remote ical aggregator.')
+    parser.add_argument('-s', dest='day', action='store_true', default=False, help='Display single day (default).')
+    parser.add_argument('-w', dest='week', action='store_true', default=False, help='Display week.')
+    parser.add_argument('-m', dest='month', action='store_true', default=False, help='Display month.')
+    parser.add_argument('-q', dest='quiet', action='store_true', default=False, help='Don\'t show any output. Useful in combination with -r.')
+    parser.add_argument('-o', dest='offset', metavar='n', type=int, action='store', default=0, help='Numerical offset from today, this week, or this month.')
+    parser.add_argument('-d', dest='description', action='store_true', default=False, help='Display event description.')
+    parser.add_argument('-l', dest='location', action='store_true', default=False, help='Display event location.')
+    parser.add_argument('-r', dest='force_retrieve', action='store_true', default=False, help='Force retrieving remote icals.')
+    parser.add_argument('-n', dest='no_retrieve', action='store_true', default=False, help='Don\'t allow retrieving remote icals, abort if no cache file is present. This overrides -r.')
 
-  print "). Aborting."
-  exit(1)
+    args = parser.parse_args()
 
 
-# set time zone
+    # check for argument conflicts
 
-with open(tz_file) as f:
-  tz = f.read().rstrip()
+    if sum([ args.day, args.week, args.month ]) > 1:
+      err =  "Error: conflicting flags (",
+      if args.day:
+        err += "-d",
+      if args.week:
+        err += "-w",
+      if args.month:
+        err += "-m",
+      err += "). Aborting."
 
-tzlocal = pytz.timezone(tz)
+      exit(err)
 
-
-# load urls
-
-with open(join(app_path, "urls")) as f:
-  urls = f.readlines()
-
-
-# retrieve icals if neccessary
-
-read = False
-cal_string = ""
-
-if not args.no_retrieve:
-
-  if (args.force_retrieve
-    or not os.path.exists(cache_file)
-    or time.time() - os.path.getmtime(cache_file) > ical_age_limit):
-    print "Retrieving icals...",
     
-    f = open(cache_file, "wb")
+    # get time zone
 
-    for url in urls:
-      # TODO catch errors
-      url = url.rstrip()
-      u = urllib.urlopen(url, url_file)
-      buf = u.read()
-      cal_string += buf
-      f.write(buf)
-
-    f.close()
-
-    print "done."
-  
-  else:
-    read = True
-
-elif not os.path.exists(cache_file):
-  print "Cache file doesn't exist, aborting."
-  exit(1)
-
-else:
-  read = True
-
-if read:
-  f = open(cache_file, "r")
-  cal_string = f.read()
-  f.close()
+    tzlocal = tzlocal.get_localzone()
 
 
-# quiet option
+    # load config files
 
-if args.quiet:
-  exit(0)
+    if not os.path.exists(url_file):
+      exit('url file not found (should be at ~/.sia/urls).')
+    else:
+      with open(url_file) as f:
+        urls = f.readlines()
 
+    if not os.path.exists(filter_file):
+      filters = []
+    else:
+      with open(filter_file) as f:
+        filters = f.readlines()
 
-# load cals
-
-cals = icalendar.Calendar.from_ical(cal_string, multiple=True)
-
-
-# import filter rules
-
-if os.path.exists(filter_file):
-  with open(filter_file) as f:
-    filters = f.readlines()
-
-  for i, elem in enumerate(filters):
-    filters[i] = elem.rstrip('\n')
-else:
-  filters = []
+      for i, elem in enumerate(filters):
+        filters[i] = elem.rstrip('\n')
 
 
-# display
+    # retrieve icals if neccessary
 
-target = dt.date.today()
+    read = False
+    cal_string = ""
 
-if args.month:
+    if not args.no_retrieve:
 
-  if args.offset != 0:
-    target = target + dt.timedelta(days=args.offset*365/12)
+      if (args.force_retrieve
+          or not os.path.exists(cache_file)
+          or time.time() - os.path.getmtime(cache_file) > ical_age_limit):
+        print "Retrieving icals...",
+        
+        f = open(cache_file, "wb")
 
-  first_offset = -1 * (target.day - 1)
-  target = target + dt.timedelta(days=first_offset)
-  cur = target
+        for url in urls:
+          # TODO catch errors
+          url = url.rstrip()
+          u = urllib.urlopen(url, url_file)
+          buf = u.read()
+          cal_string += buf
+          f.write(buf)
 
-  last = calendar.monthrange(target.year, target.month)[1]
-  for day in range(0, last):
-    cur = target + dt.timedelta(days=day)
-    print events_date(cals, cur, location=args.location)
+        f.close()
 
-elif args.week:
+        print "done."
+      
+      else:
+        read = True
 
-  if args.offset != 0:
-    target = target + dt.timedelta(weeks=args.offset)
+    elif not os.path.exists(cache_file):
+      exit("Cache file doesn't exist, aborting.")
 
-  monday_offset = -1 * target.weekday()
-  target = target + dt.timedelta(days=monday_offset)
-  cur = target
+    else:
+      read = True
 
-  for day in range(0, 7):
-    cur = target + dt.timedelta(days=day)
-    print events_date(cals, cur, location=args.location, description=args.description)
+    if read:
+      with open(cache_file) as f:
+        cal_string = f.read()
 
-else:
-  if args.offset != 0:
-    target = dt.date.today() + dt.timedelta(days=args.offset)
 
-  print events_date(cals, target, location=args.location)
+    # quiet option
+
+    if args.quiet:
+      sys.exit()
+
+
+    # load cals
+
+    cals = icalendar.Calendar.from_ical(cal_string, multiple=True)
+
+
+    # display
+
+    target = dt.date.today()
+
+    if args.month:
+
+      if args.offset != 0:
+        target = target + dt.timedelta(days=args.offset*365/12)
+
+      first_offset = -1 * (target.day - 1)
+      target = target + dt.timedelta(days=first_offset)
+      cur = target
+
+      last = calendar.monthrange(target.year, target.month)[1]
+      for day in range(0, last):
+        cur = target + dt.timedelta(days=day)
+        print events_date(cals, cur, location=args.location)
+
+    elif args.week:
+
+      if args.offset != 0:
+        target = target + dt.timedelta(weeks=args.offset)
+
+      monday_offset = -1 * target.weekday()
+      target = target + dt.timedelta(days=monday_offset)
+      cur = target
+
+      for day in range(0, 7):
+        cur = target + dt.timedelta(days=day)
+        print events_date(cals, cur, location=args.location, description=args.description)
+
+    else:
+      if args.offset != 0:
+        target = dt.date.today() + dt.timedelta(days=args.offset)
+
+      print events_date(cals, target, location=args.location)
