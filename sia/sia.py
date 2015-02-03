@@ -19,12 +19,18 @@ import urllib
 ical_age_limit = 3600 * 12;
 
 
+# global
+tz = tzlocal.get_localzone()
+
+
 # functions
 
 def exit(error_msg):
     sys.exit(os.path.basename(__file__) + ": Error: " + error_msg)
 
-def events_date(cal, event_date, location=False, description=False):
+def events_date(cals, event_date, filters, location=False, description=False):
+  global tz
+
   print event_date.strftime("%A, %x:")
 
   events = []
@@ -34,7 +40,7 @@ def events_date(cal, event_date, location=False, description=False):
       dtstart = component.get('dtstart').dt
 
       if dtstart.date() == event_date:
-        dt_local = dtstart.astimezone(tzlocal) # localize time
+        dt_local = dtstart.astimezone(tz) # localize time
         start = dt_local.time()
 
         # filter
@@ -53,7 +59,7 @@ def events_date(cal, event_date, location=False, description=False):
   for event in events:
     start = event[0]
     component = event[1]
-    dt_local = component.get('dtend').dt.astimezone(tzlocal) # localize time
+    dt_local = component.get('dtend').dt.astimezone(tz) # localize time
     end = dt_local.time()
 
     summary = component.get('summary')
@@ -76,7 +82,7 @@ def events_date(cal, event_date, location=False, description=False):
   return ''
 
 
-if __name__ == '__main__':
+def main():
 
     # setup file names
 
@@ -117,9 +123,6 @@ if __name__ == '__main__':
       exit(err)
 
     
-    # get time zone
-
-    tzlocal = tzlocal.get_localzone()
 
 
     # load config files
@@ -207,7 +210,7 @@ if __name__ == '__main__':
       last = calendar.monthrange(target.year, target.month)[1]
       for day in range(0, last):
         cur = target + dt.timedelta(days=day)
-        print events_date(cals, cur, location=args.location)
+        print events_date(cals, cur, filters, location=args.location)
 
     elif args.week:
 
@@ -220,10 +223,10 @@ if __name__ == '__main__':
 
       for day in range(0, 7):
         cur = target + dt.timedelta(days=day)
-        print events_date(cals, cur, location=args.location, description=args.description)
+        print events_date(cals, cur, filters, location=args.location, description=args.description)
 
     else:
       if args.offset != 0:
         target = dt.date.today() + dt.timedelta(days=args.offset)
 
-      print events_date(cals, target, location=args.location)
+      print events_date(cals, target, filters, location=args.location)
