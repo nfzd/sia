@@ -61,5 +61,5 @@ target/
 
 # Custom
 __project
-cache.ics
-
+MANIFEST
+dist/

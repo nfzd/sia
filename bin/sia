@@ -3,6 +3,7 @@
 import argparse
 import calendar
 import datetime as dt
+from datetime import datetime
 import icalendar
 from operator import itemgetter
 import os, os.path
@@ -40,7 +41,11 @@ def events_date(cals, event_date, filters, location=False, description=False):
       dtstart = component.get('dtstart').dt
 
       if dtstart.date() == event_date:
-        dt_local = dtstart.astimezone(tz) # localize time
+
+        if dtstart.tzinfo is None:
+            dt_local = tz.localize(dtstart)
+        else:
+            dt_local = dtstart.astimezone(tz) # localize time
         start = dt_local.time()
 
         # filter
@@ -59,7 +64,12 @@ def events_date(cals, event_date, filters, location=False, description=False):
   for event in events:
     start = event[0]
     component = event[1]
-    dt_local = component.get('dtend').dt.astimezone(tz) # localize time
+    dtend = component.get('dtend').dt
+
+    if dtend.tzinfo is None:
+        dt_local = tz.localize(dtend)
+    else:
+        dt_local = dtend.astimezone(tz) # localize time
     end = dt_local.time()
 
     summary = component.get('summary')
@@ -82,15 +92,16 @@ def events_date(cals, event_date, filters, location=False, description=False):
   return ''
 
 
-def main():
+if __name__ == '__main__':
 
     # setup file names
 
     home = os.path.expanduser("~")
     confdir = join(home, '.sia')
     url_file = join(confdir, 'urls')
-    filter_file = join(confdir, 'urls')
+    filter_file = join(confdir, 'filters')
     cache_file = join(confdir, 'cache.ics')
+    local_file = join(confdir, 'local')
 
     # parse arguments
 
@@ -122,8 +133,6 @@ def main():
 
       exit(err)
 
-    
-
 
     # load config files
 
@@ -141,6 +150,74 @@ def main():
 
       for i, elem in enumerate(filters):
         filters[i] = elem.rstrip('\n')
+
+
+    # load local calendar
+
+    local_cal = ""
+
+    if os.path.exists(url_file):
+        with open(local_file) as f:
+            local_lines = f.readlines()
+
+        # TODO: generate local .ics cache file, only re-read if local event
+        #   file has been modified
+
+        cal = icalendar.Calendar()
+
+        i = 0
+        while i < len(local_lines):
+            cur = local_lines[i].rstrip()
+            i += 1
+
+            if not cur:
+                continue
+
+            # parse for "date start_time-end_time"
+            rdate = re.sub(" .*", "", cur)
+            rstart = re.sub(".* ([0-9]*:[0-9]*)-[0-9]*:[0-9]*", "\g<1>", cur)
+            rend = re.sub(".*-", "", cur)
+
+            # next line must exist and contain event name
+            cur = local_lines[i].rstrip()
+            i += 1
+
+            name = cur
+            location = ""
+            description = ""
+
+            # next line can exist and contain location
+            cur = local_lines[i].rstrip()
+
+            if cur:
+                i += 1
+                location = cur
+
+                cur = local_lines[i].rstrip()
+
+            # next line can exist and contain description
+            if cur:
+                i += 1
+                description = cur
+
+            # create event
+
+            dtstart = datetime.strptime(rdate + " " + rstart, '%d.%m.%y %H:%M')
+            dtend = datetime.strptime(rdate + " " + rend, '%d.%m.%y %H:%M')
+
+            dtstart = tz.localize(dtstart)
+            dtend = tz.localize(dtend)
+
+            event = icalendar.Event()
+            event.add('dtstart', dtstart)
+            event.add('dtend', dtend)
+            event.add('summary', name)
+            event.add('location', location)
+            event.add('description', description)
+
+            cal.add_component(event)
+
+        local_cal = cal.to_ical()
 
 
     # retrieve icals if neccessary
@@ -191,6 +268,7 @@ def main():
 
     # load cals
 
+    cal_string += local_cal
     cals = icalendar.Calendar.from_ical(cal_string, multiple=True)
 
 
