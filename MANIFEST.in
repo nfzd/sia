@@ -1,3 +1,2 @@
-include *.txt
-include README.md
+include CHANGES LICENSE README REQUIREMENTS VERSION
 recursive-include docs *.txt
