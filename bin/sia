@@ -288,7 +288,7 @@ if __name__ == '__main__':
       last = calendar.monthrange(target.year, target.month)[1]
       for day in range(0, last):
         cur = target + dt.timedelta(days=day)
-        print events_date(cals, cur, filters, location=args.location)
+        print events_date(cals, cur, filters, location=args.location, description=args.description)
 
     elif args.week:
 
@@ -307,4 +307,4 @@ if __name__ == '__main__':
       if args.offset != 0:
         target = dt.date.today() + dt.timedelta(days=args.offset)
 
-      print events_date(cals, target, filters, location=args.location)
+      print events_date(cals, target, filters, location=args.location, description=args.description)
