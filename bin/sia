@@ -8,6 +8,7 @@ import icalendar
 from operator import itemgetter
 import os, os.path
 from os.path import join
+import cPickle
 import pytz
 import re
 import sys
@@ -28,6 +29,72 @@ tz = tzlocal.get_localzone()
 
 def exit(error_msg):
     sys.exit(os.path.basename(__file__) + ": Error: " + error_msg)
+
+
+def __hash(string):
+    return str(hash(string) & 0xffffffff)
+
+
+def read_local_cal(local_file):
+  cal = icalendar.Calendar()
+
+  if os.path.exists(local_file):
+      with open(local_file) as f:
+          local_lines = f.readlines()
+
+      i = 0
+      while i < len(local_lines):
+          cur = local_lines[i].rstrip()
+          i += 1
+
+          if not cur:
+              continue
+
+          # parse for "date start_time-end_time"
+          rdate = re.sub(" .*", "", cur)
+          rstart = re.sub(".* ([0-9]*:[0-9]*)-[0-9]*:[0-9]*", "\g<1>", cur)
+          rend = re.sub(".*-", "", cur)
+
+          # next line must exist and contain event name
+          cur = local_lines[i].rstrip()
+          i += 1
+
+          name = cur
+          location = ""
+          description = ""
+
+          # next line can exist and contain location
+          cur = local_lines[i].rstrip()
+
+          if cur:
+              i += 1
+              location = cur
+
+              cur = local_lines[i].rstrip()
+
+          # next line can exist and contain description
+          if cur:
+              i += 1
+              description = cur
+
+          # create event
+
+          dtstart = datetime.strptime(rdate + " " + rstart, '%d.%m.%y %H:%M')
+          dtend = datetime.strptime(rdate + " " + rend, '%d.%m.%y %H:%M')
+
+          dtstart = tz.localize(dtstart)
+          dtend = tz.localize(dtend)
+
+          event = icalendar.Event()
+          event.add('dtstart', dtstart)
+          event.add('dtend', dtend)
+          event.add('summary', name)
+          event.add('location', location)
+          event.add('description', description)
+
+          cal.add_component(event)
+
+  return cal
 
 def events_date(cals, event_date, filters, location=False, description=False):
   global tz
@@ -98,10 +165,12 @@ if __name__ == '__main__':
 
     home = os.path.expanduser("~")
     confdir = join(home, '.sia')
+    cachedir = join(confdir, 'cache')
+
     url_file = join(confdir, 'urls')
     filter_file = join(confdir, 'filters')
-    cache_file = join(confdir, 'cache.ics')
     local_file = join(confdir, 'local')
+    local_cache = join(cachedir, 'local.pkl')
 
     # parse arguments
 
@@ -134,7 +203,15 @@ if __name__ == '__main__':
       exit(err)
 
 
-    # load config files
+    # check for config directory
+
+    if not os.path.exists(confdir):
+      os.makedirs(confdir)
+
+    if not os.path.exists(cachedir):
+      os.makedirs(cachedir)
+
+# load config files
 
     if not os.path.exists(url_file):
       exit('url file not found (should be at ~/.sia/urls).')
@@ -152,124 +229,72 @@ if __name__ == '__main__':
         filters[i] = elem.rstrip('\n')
 
 
-    # load local calendar
+    # calendar loading
+    # on pickle for each local and remote cal
 
-    local_cal = ""
+    cals = []
+    
 
-    if os.path.exists(url_file):
-        with open(local_file) as f:
-            local_lines = f.readlines()
+    # local cal
 
-        # TODO: generate local .ics cache file, only re-read if local event
-        #   file has been modified
+    if (not os.path.exists(local_cache) or
+        os.path.getmtime(local_file) > os.path.getmtime(local_cache)):
 
-        cal = icalendar.Calendar()
+      local_cal = read_local_cal(local_file)
 
-        i = 0
-        while i < len(local_lines):
-            cur = local_lines[i].rstrip()
-            i += 1
-
-            if not cur:
-                continue
-
-            # parse for "date start_time-end_time"
-            rdate = re.sub(" .*", "", cur)
-            rstart = re.sub(".* ([0-9]*:[0-9]*)-[0-9]*:[0-9]*", "\g<1>", cur)
-            rend = re.sub(".*-", "", cur)
-
-            # next line must exist and contain event name
-            cur = local_lines[i].rstrip()
-            i += 1
-
-            name = cur
-            location = ""
-            description = ""
-
-            # next line can exist and contain location
-            cur = local_lines[i].rstrip()
-
-            if cur:
-                i += 1
-                location = cur
-
-                cur = local_lines[i].rstrip()
-
-            # next line can exist and contain description
-            if cur:
-                i += 1
-                description = cur
-
-            # create event
-
-            dtstart = datetime.strptime(rdate + " " + rstart, '%d.%m.%y %H:%M')
-            dtend = datetime.strptime(rdate + " " + rend, '%d.%m.%y %H:%M')
-
-            dtstart = tz.localize(dtstart)
-            dtend = tz.localize(dtend)
-
-            event = icalendar.Event()
-            event.add('dtstart', dtstart)
-            event.add('dtend', dtend)
-            event.add('summary', name)
-            event.add('location', location)
-            event.add('description', description)
-
-            cal.add_component(event)
-
-        local_cal = cal.to_ical()
-
-
-    # retrieve icals if neccessary
-
-    read = False
-    cal_string = ""
-
-    if not args.no_retrieve:
-
-      if (args.force_retrieve
-          or not os.path.exists(cache_file)
-          or time.time() - os.path.getmtime(cache_file) > ical_age_limit):
-        print "Retrieving icals...",
-        
-        f = open(cache_file, "wb")
-
-        for url in urls:
-          # TODO catch errors
-          url = url.rstrip()
-          u = urllib.urlopen(url, url_file)
-          buf = u.read()
-          cal_string += buf
-          f.write(buf)
-
-        f.close()
-
-        print "done."
-      
-      else:
-        read = True
-
-    elif not os.path.exists(cache_file):
-      exit("Cache file doesn't exist, aborting.")
-
+      with open(local_cache, 'wb') as f:
+        cPickle.dump(local_cal, f)
     else:
-      read = True
+      with open(local_cache, 'rb') as f:
+        local_cal = cPickle.load(f)
 
-    if read:
-      with open(cache_file) as f:
-        cal_string = f.read()
+    cals.append(local_cal)
+
+
+    # remote cals
+
+    printed = False
+
+    for url in urls:
+      url = url.rstrip()
+      cur_file = join(cachedir, __hash(url) + '.pkl')
+
+      if (not args.no_retrieve and
+          (args.force_retrieve or
+           not os.path.exists(cur_file) or
+           time.time() - os.path.getmtime(cur_file) > ical_age_limit)):
+
+        # fetching remote cals and saving them each in their own cache file,
+        #   name is generate as hash from url
+
+        if not printed:
+          print "Retrieving icals..."
+          printed = True
+        
+        # TODO catch errors
+        u = urllib.urlopen(url)
+        buf = u.read()
+        cal = icalendar.Calendar.from_ical(buf)
+
+        with open(cur_file, 'wb') as f:
+          cPickle.dump(cal, f)
+
+      elif not os.path.exists(cur_file):
+        exit("Missing a cache file, aborting.")
+
+      else:
+        # read pickle from file
+
+        with open(cur_file, 'rb') as f:
+          cal = cPickle.load(f)
+
+      cals.append(cal)
 
 
     # quiet option
 
     if args.quiet:
       sys.exit()
-
-
-    # load cals
-
-    cal_string += local_cal
-    cals = icalendar.Calendar.from_ical(cal_string, multiple=True)
 
 
     # display
