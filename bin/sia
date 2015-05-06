@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
     local_cal = ""
 
-    if os.path.exists(url_file):
+    if os.path.exists(local_file):
         with open(local_file) as f:
             local_lines = f.readlines()
 
