@@ -65,18 +65,20 @@ def read_local_cal(local_file):
           description = ""
 
           # next line can exist and contain location
-          cur = local_lines[i].rstrip()
-
-          if cur:
-              i += 1
-              location = cur
-
+          if i < len(local_lines):
               cur = local_lines[i].rstrip()
 
+              if cur:
+                  i += 1
+                  location = cur
+
           # next line can exist and contain description
-          if cur:
-              i += 1
-              description = cur
+          if i < len(local_lines):
+              cur = local_lines[i].rstrip()
+
+              if cur:
+                  i += 1
+                  description = cur
 
           # create event
 
@@ -243,10 +245,10 @@ if __name__ == '__main__':
 
 
     # calendar loading
-    # on pickle for each local and remote cal
+    # one pickle for each local and remote cal
 
     cals = []
-    
+
 
     # local cal
 
@@ -260,6 +262,10 @@ if __name__ == '__main__':
     else:
       with open(local_cache, 'rb') as f:
         local_cal = cPickle.load(f)
+
+    if os.path.exists(local_file):
+        with open(local_file) as f:
+            local_lines = f.readlines()
 
     cals.append(local_cal)
 
