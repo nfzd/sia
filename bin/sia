@@ -187,15 +187,17 @@ if __name__ == '__main__':
             description = ""
 
             # next line can exist and contain location
-            cur = local_lines[i].rstrip()
-
-            if cur:
-                i += 1
-                location = cur
-
+            if i < len(local_lines):
                 cur = local_lines[i].rstrip()
 
+                if cur:
+                    i += 1
+                    location = cur
+
             # next line can exist and contain description
+            if i < len(local_lines):
+                cur = local_lines[i].rstrip()
+
             if cur:
                 i += 1
                 description = cur
